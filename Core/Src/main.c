@@ -104,7 +104,7 @@ int main(void)
 
   uint8_t RDSID[2] = {0x00, 0x2C};
   uint8_t SID[6] = {0x00};
-  HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI_NCS_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 
@@ -114,15 +114,15 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI_NCS_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_RESET);
 	HAL_SPI_Transmit(&hspi1, RDSID, sizeof(RDSID)/sizeof(uint8_t), 1000);
-	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI_NCS_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
 
 	HAL_Delay(100);
 
-	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI_NCS_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_RESET);
 	HAL_SPI_Receive(&hspi1, SID, sizeof(SID)/sizeof(uint8_t), 1000);
-	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI_NCS_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
 
     /* USER CODE BEGIN 3 */
   }
