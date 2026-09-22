@@ -102,6 +102,10 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
+  uint8_t RDSID[2] = {0x00, 0x2C};
+  uint8_t SID[6] = {0x00};
+  HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -109,6 +113,16 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_RESET);
+	HAL_SPI_Transmit(&hspi1, RDSID, sizeof(RDSID)/sizeof(uint8_t), 1000);
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
+
+	HAL_Delay(100);
+
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_RESET);
+	HAL_SPI_Receive(&hspi1, SID, sizeof(SID)/sizeof(uint8_t), 1000);
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
 
     /* USER CODE BEGIN 3 */
   }
@@ -340,17 +354,17 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, MCU_DISCHARGE_EN_Pin|MCU_CHARGE_EN_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : SPI1_NSS_Pin */
-  GPIO_InitStruct.Pin = SPI1_NSS_Pin;
+  /*Configure GPIO pin : SPI1_NCS_Pin */
+  GPIO_InitStruct.Pin = SPI1_NCS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SPI1_NSS_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(SPI1_NCS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : MCU_DISCHARGE_EN_Pin MCU_CHARGE_EN_Pin */
   GPIO_InitStruct.Pin = MCU_DISCHARGE_EN_Pin|MCU_CHARGE_EN_Pin;
