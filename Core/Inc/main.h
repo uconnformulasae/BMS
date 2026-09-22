@@ -57,6 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define SPI1_NCS_Pin GPIO_PIN_4
+#define SPI1_NCS_GPIO_Port GPIOA
 #define MCU_DISCHARGE_EN_Pin GPIO_PIN_6
 #define MCU_DISCHARGE_EN_GPIO_Port GPIOC
 #define MCU_J1772_IN_Pin GPIO_PIN_7
