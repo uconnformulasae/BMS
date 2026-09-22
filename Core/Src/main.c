@@ -114,9 +114,10 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-	// Need to pull NCS down and delay
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI_NCS_Pin, GPIO_PIN_RESET);
 	HAL_SPI_Transmit(&hspi1, RDSID, sizeof(RDSID)/sizeof(uint8_t), 1000);
-	// Need to delay and pull NCS up
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI_NCS_Pin, GPIO_PIN_SET);
+
 
 	HAL_SPI_Receive(&hspi1, SID, sizeof(SID)/sizeof(uint8_t), 1000);
 
