@@ -221,6 +221,20 @@ static void test_pec_failure_is_retried_after_a_forced_wake(void)
   CHECK_EQ(frame_u16(BMS_CAN_STATUS_ID, 2), 0x0000);     /* the retry recovered IC1 */
 }
 
+static void test_ic_that_fails_the_retry_too_is_sent_as_no_data(void)
+{
+  boot();
+  fake_chain.cells[0][0] = 14747;                        /* 3.712050 V on IC0 */
+  run_cycles(2);
+  fake_chain.cell_pec_fail = 0x0002U;                    /* IC1 fails the read and the retry */
+  fake_chain.cell_pec_fail_reads = UINT32_MAX;
+  run_cycles(1);
+  CHECK_EQ(chain_state_sent(), CAN_FRAMES_CHAIN_RUNNING);
+  CHECK_EQ(frame_u16(BMS_CAN_STATUS_ID, 2), 0x0002);     /* only IC1 invalid */
+  CHECK_EQ(frame_u16(BMS_CAN_CELL_BASE_ID, 0), 37121);   /* IC0's cells still go out */
+  CHECK_EQ(frame_u16(BMS_CAN_CELL_BASE_ID + 4U, 0), CAN_FRAMES_NO_DATA);   /* 0x704 starts IC1's cells */
+}
+
 static void test_chip_reset_codes_send_the_chain_back_to_init(void)
 {
   boot();
@@ -276,6 +290,7 @@ int main(void)
 {
   test_init_starts_the_monitor_from_scratch();
   test_pec_failure_is_retried_after_a_forced_wake();
+  test_ic_that_fails_the_retry_too_is_sent_as_no_data();
   test_chip_reset_codes_send_the_chain_back_to_init();
   test_chain_lost_for_five_cycles_goes_back_to_init();
   test_config_change_sends_the_chain_back_to_init();
