@@ -95,7 +95,7 @@ void can_frames_build_ic(const can_frames_ic_t *ic, uint16_t base_id, can_frame_
   frame->data[0] = ic->index;
   frame->data[1] = ic->status;
   frame->data[2] = ic->cmd_count;
-  frame->data[3] = ic->pec_fail_run;
+  frame->data[3] = ic->invalid_run;
   put_u16(&frame->data[4], (uint16_t)ic->die_temp_0p1c);
   put_u16(&frame->data[6], ic->balance_mask);
 }

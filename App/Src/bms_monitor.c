@@ -33,7 +33,7 @@ static chain_state_t chain_state;
 static uint32_t cycle_count;
 static uint32_t last_cycle_ms;
 static uint16_t invalid_ics;            /* bit i: IC i has no valid data this cycle */
-static uint8_t pec_fail_run[TOTAL_IC];
+static uint8_t invalid_run[TOTAL_IC];
 static uint8_t all_invalid_run;
 
 static const char *state_name(chain_state_t state)
@@ -206,17 +206,17 @@ static uint16_t measure(bool status_cycle, bool config_cycle)
   return status_failed;
 }
 
-static void count_pec_failures(void)
+static void count_invalid_cycles(void)
 {
   for (uint8_t i = 0; i < TOTAL_IC; i++)
   {
     if (((invalid_ics >> i) & 1U) == 0U)
     {
-      pec_fail_run[i] = 0U;
+      invalid_run[i] = 0U;
     }
-    else if (pec_fail_run[i] < UINT8_MAX)
+    else if (invalid_run[i] < UINT8_MAX)
     {
-      pec_fail_run[i]++;
+      invalid_run[i]++;
     }
   }
 }
@@ -227,7 +227,7 @@ static can_frames_ic_t ic_status(uint8_t i, uint16_t status_failed)
     .index = i,
     .status = CAN_FRAMES_IC_PEC_FAIL,
     .cmd_count = 0U,
-    .pec_fail_run = pec_fail_run[i],
+    .invalid_run = invalid_run[i],
     .die_temp_0p1c = CAN_FRAMES_TEMP_UNKNOWN,
     .balance_mask = 0U,                 /* balancing not implemented */
   };
@@ -313,7 +313,7 @@ static void report_ic(uint8_t i, uint16_t status_failed)
 {
   if (((invalid_ics >> i) & 1U) != 0U)
   {
-    printf("IC%u  no valid data, %u failed cycles in a row\n", i, pec_fail_run[i]);
+    printf("IC%u  no valid data, %u invalid cycles in a row\n", i, invalid_run[i]);
     return;
   }
   can_frames_ic_t status = ic_status(i, status_failed);
@@ -378,7 +378,7 @@ static void report_can_timing(const CAN_TypeDef *can)
 void bms_monitor_init(void)
 {
   memset(ic, 0, sizeof ic);
-  memset(pec_fail_run, 0, sizeof pec_fail_run);
+  memset(invalid_run, 0, sizeof invalid_run);
   chain_state = CHAIN_INIT;
   invalid_ics = ALL_ICS;
   all_invalid_run = 0U;
@@ -424,7 +424,7 @@ void bms_monitor_run(void)
   {
     status_failed = measure(status_cycle, (cycle_count % BMS_CONFIG_CHECK_EVERY) == 0U);
   }
-  count_pec_failures();
+  count_invalid_cycles();
   send_frames(status_cycle, status_failed);
   if ((cycle_count % BMS_REPORT_EVERY) == 0U)
   {

@@ -9,7 +9,7 @@
   *                               [2..3] invalid-IC bitmap  [4..7] 0
   *            cells    base + k  cells 4k+1 .. 4k+4, u16 each, 0.1 mV/bit
   *            per IC   base + i  [0] index  [1] status bits  [2] command counter
-  *                               [3] consecutive PEC failures
+  *                               [3] consecutive cycles without valid data
   *                               [4..5] die temperature s16, 0.1 C
   *                               [6..7] balancing bitmap
   ******************************************************************************
@@ -51,7 +51,7 @@ typedef struct
   uint8_t  index;
   uint8_t  status;           /* CAN_FRAMES_IC_* bits */
   uint8_t  cmd_count;
-  uint8_t  pec_fail_run;
+  uint8_t  invalid_run;
   int16_t  die_temp_0p1c;
   uint16_t balance_mask;
 } can_frames_ic_t;

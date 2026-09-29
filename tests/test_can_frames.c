@@ -110,7 +110,7 @@ static void test_ic_frame_layout(void)
     .index = 1,
     .status = CAN_FRAMES_IC_ANY_UV | CAN_FRAMES_IC_THSD,
     .cmd_count = 37,
-    .pec_fail_run = 255,
+    .invalid_run = 255,
     .die_temp_0p1c = -123,
     .balance_mask = 0x1234,
   };
