@@ -104,6 +104,9 @@ typedef struct
 #define CAN_FILTER_DISABLE      0x00000000U
 #define CAN_IT_TX_MAILBOX_EMPTY 0x00000001U
 
+#define CAN_TSR_RQCP0           (1U << 0)
+#define CAN_TSR_RQCP1           (1U << 8)
+#define CAN_TSR_RQCP2           (1U << 16)
 #define CAN_TSR_ABRQ0           (1U << 7)
 #define CAN_TSR_ABRQ1           (1U << 15)
 #define CAN_TSR_ABRQ2           (1U << 23)

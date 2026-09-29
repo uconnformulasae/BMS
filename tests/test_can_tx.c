@@ -62,6 +62,16 @@ HAL_StatusTypeDef HAL_CAN_AddTxMessage(CAN_HandleTypeDef *hcan, const CAN_TxHead
   {
     return HAL_ERROR;
   }
+  /* bxCAN clears a mailbox's completion flags when the mailbox is loaded; the
+     fake reuses a completed mailbox first. */
+  for (uint32_t rqcp = CAN_TSR_RQCP0; rqcp <= CAN_TSR_RQCP2; rqcp <<= 8)
+  {
+    if ((regs.TSR & rqcp) != 0U)
+    {
+      regs.TSR &= ~rqcp;
+      break;
+    }
+  }
   free_mailboxes--;
   mailbox_ids[n_mailboxed++] = pHeader->StdId;
   *pTxMailbox = 0U;
@@ -77,6 +87,26 @@ HAL_StatusTypeDef HAL_CAN_ResetError(CAN_HandleTypeDef *hcan)
 {
   hcan->ErrorCode = 0U;
   return HAL_OK;
+}
+
+/* What HAL_CAN_IRQHandler does for each mailbox whose request completed. */
+static void run_tx_interrupt(void)
+{
+  static void (*const complete[3])(CAN_HandleTypeDef *) = {
+    HAL_CAN_TxMailbox0CompleteCallback,
+    HAL_CAN_TxMailbox1CompleteCallback,
+    HAL_CAN_TxMailbox2CompleteCallback,
+  };
+  uint32_t tsr = regs.TSR;
+  for (uint32_t m = 0; m < 3U; m++)
+  {
+    uint32_t rqcp = CAN_TSR_RQCP0 << (8U * m);
+    if ((tsr & rqcp) != 0U)
+    {
+      regs.TSR &= ~rqcp;
+      complete[m](&hcan2);
+    }
+  }
 }
 
 static void reset(uint32_t mailboxes)
@@ -166,6 +196,17 @@ static void test_controller_that_did_not_start_drops_everything(void)
   CHECK_EQ(can_tx_counters().dropped, 4);
 }
 
+static void test_completion_pending_during_a_send_is_still_counted(void)
+{
+  reset(1);
+  regs.TSR = CAN_TSR_RQCP0;                    /* mailbox 0 finished; its interrupt has not run yet */
+  send_ids(0x700, 1);
+  run_tx_interrupt();
+  CHECK_EQ(can_tx_counters().sent, 1);
+  CHECK_EQ(n_mailboxed, 1);                    /* and the new frame still goes out */
+  CHECK_EQ(mailbox_ids[0], 0x700);
+}
+
 static void test_other_controllers_callbacks_are_ignored(void)
 {
   reset(0);
@@ -184,6 +225,7 @@ int main(void)
   test_new_cycle_drops_stale_frames_and_aborts_mailboxes();
   test_aborted_mailboxes_count_as_dropped();
   test_controller_that_did_not_start_drops_everything();
+  test_completion_pending_during_a_send_is_still_counted();
   test_other_controllers_callbacks_are_ignored();
   if (failures != 0)
   {

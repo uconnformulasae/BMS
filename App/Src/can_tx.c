@@ -43,6 +43,13 @@ static void pump(void)
   }
 }
 
+/* True while a mailbox has finished but the TX interrupt has not yet counted
+   it: loading that mailbox now would clear its completion flags unseen. */
+static bool completion_pending(void)
+{
+  return (can->Instance->TSR & (CAN_TSR_RQCP0 | CAN_TSR_RQCP1 | CAN_TSR_RQCP2)) != 0U;
+}
+
 static void mailbox_done(CAN_HandleTypeDef *hcan, bool transmitted)
 {
   if (hcan != can)
@@ -115,7 +122,10 @@ void can_tx_send(const can_frame_t *frame)
   {
     queue[head % QUEUE_LEN] = *frame;
     head++;
-    pump();
+    if (!completion_pending())
+    {
+      pump();                           /* otherwise the pending TX interrupt counts, then refills */
+    }
   }
   __set_PRIMASK(primask);
 }
