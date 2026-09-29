@@ -124,6 +124,16 @@ static void run_cycles(unsigned count)
   }
 }
 
+static void test_init_starts_the_monitor_from_scratch(void)
+{
+  boot();
+  run_cycles(3);
+  boot();
+  run_cycles(1);                                         /* a fresh INIT cycle, counted from zero */
+  CHECK_EQ(frame_u16(BMS_CAN_STATUS_ID, 0) >> 8, 0);     /* cycle counter */
+  CHECK_EQ(frame_u16(BMS_CAN_STATUS_ID, 2), 0x0003);     /* no IC has data yet */
+}
+
 static void test_die_temperature_reaches_the_per_ic_frame(void)
 {
   boot();
@@ -132,9 +142,33 @@ static void test_die_temperature_reaches_the_per_ic_frame(void)
   CHECK_EQ(frame_u16(BMS_CAN_IC_BASE_ID, 4), 250);
 }
 
+static void test_report_prints_cells_as_the_frames_carry_them(void)
+{
+  boot();
+  fake_chain.cells[0][0] = 14747;                        /* 3.712050 V */
+  run_cycles(1U + BMS_REPORT_EVERY);                     /* INIT, then to the first RUNNING report */
+  CHECK_EQ(frame_u16(BMS_CAN_CELL_BASE_ID, 0), 37121);
+  CHECK_EQ(strstr(output, "C1  3.7121V") != NULL, 1);
+}
+
+static void test_report_marks_a_failed_status_read(void)
+{
+  boot();
+  run_cycles(BMS_REPORT_EVERY);                          /* up to the cycle before the report */
+  fake_chain.status_pec_fail = 0x0002U;                  /* IC1's status reads fail PEC */
+  output_len = 0U;
+  run_cycles(1);
+  CHECK_EQ(frame_u16(BMS_CAN_IC_BASE_ID + 1U, 0) >> 8, CAN_FRAMES_IC_PEC_FAIL);
+  CHECK_EQ(strstr(output, "IC1  status read failed PEC") != NULL, 1);
+  CHECK_EQ(strstr(output, "IC1  cmd count") == NULL, 1);
+}
+
 int main(void)
 {
+  test_init_starts_the_monitor_from_scratch();
   test_die_temperature_reaches_the_per_ic_frame();
+  test_report_prints_cells_as_the_frames_carry_them();
+  test_report_marks_a_failed_status_read();
   if (failures != 0)
   {
     printf("bms_monitor: %d check(s) failed\n", failures);

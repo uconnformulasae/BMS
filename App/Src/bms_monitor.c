@@ -27,11 +27,12 @@ typedef enum
   CHAIN_RUNNING = CAN_FRAMES_CHAIN_RUNNING,
 } chain_state_t;
 
+/* Set by bms_monitor_init(). */
 static cell_asic ic[TOTAL_IC];
-static chain_state_t chain_state = CHAIN_INIT;
+static chain_state_t chain_state;
 static uint32_t cycle_count;
 static uint32_t last_cycle_ms;
-static uint16_t invalid_ics = ALL_ICS;  /* bit i: IC i has no valid data this cycle */
+static uint16_t invalid_ics;            /* bit i: IC i has no valid data this cycle */
 static uint8_t pec_fail_run[TOTAL_IC];
 static uint8_t all_invalid_run;
 
@@ -290,35 +291,52 @@ static void send_frames(bool status_cycle, uint16_t status_failed)
   }
 }
 
-/* Prints a cell code as volts to 0.1 mV, e.g. "3.7121V", keeping the sign. */
-static void print_volts(int16_t code)
+/* Prints a cell as the CAN frames carry it, e.g. "3.7121V", except that a
+   negative reading keeps its sign (the frames clamp it to 0 V) and 0x8000, a
+   register that never converted, prints as "----". */
+static void print_cell(int16_t code)
 {
-  long tenth_mv = ((long)code + 10000L) * 3L / 2L;   /* V = (code + 10000) * 150 uV */
-  unsigned long magnitude = (unsigned long)((tenth_mv < 0) ? -tenth_mv : tenth_mv);
-  printf("%s%lu.%04luV", (tenth_mv < 0) ? "-" : "", magnitude / 10000UL, magnitude % 10000UL);
+  if (code == CAN_FRAMES_RESET_CODE)
+  {
+    printf("   ----");
+    return;
+  }
+  /* V = (code + 10000) * 150 uV, so codes c and -20000 - c lie the same
+     distance either side of 0 V. */
+  bool negative = code < -10000;
+  unsigned tenth_mv = can_frames_cell_0p1mv(negative ? (int16_t)(-20000 - code) : code);
+  printf("%s%u.%04uV", negative ? "-" : "", tenth_mv / 10000U, tenth_mv % 10000U);
 }
 
-static void report_ic(uint8_t i)
+/* One IC's report lines, built from exactly what its CAN frames carry. */
+static void report_ic(uint8_t i, uint16_t status_failed)
 {
-  const cell_asic *chip = &ic[i];
   if (((invalid_ics >> i) & 1U) != 0U)
   {
     printf("IC%u  no valid data, %u failed cycles in a row\n", i, pec_fail_run[i]);
     return;
   }
-  int16_t die = can_frames_die_temp_0p1c((int16_t)chip->stata.itmp);
-  printf("IC%u  cmd count %u", i, chip->cccrc.cmd_cntr);
-  if (die != CAN_FRAMES_TEMP_UNKNOWN)
+  can_frames_ic_t status = ic_status(i, status_failed);
+  if ((status.status & CAN_FRAMES_IC_PEC_FAIL) != 0U)
   {
-    long magnitude = (die < 0) ? -(long)die : (long)die;
-    printf("  die %s%ld.%ldC", (die < 0) ? "-" : "", magnitude / 10L, magnitude % 10L);
+    printf("IC%u  status read failed PEC\n", i);
   }
-  printf("  OV %u  UV %u\n", can_frames_any_flag(chip->statd.c_ov, BMS_CHANNEL_MASK),
-         can_frames_any_flag(chip->statd.c_uv, BMS_CHANNEL_MASK));
+  else
+  {
+    int16_t die = status.die_temp_0p1c;
+    printf("IC%u  cmd count %u", i, status.cmd_count);
+    if (die != CAN_FRAMES_TEMP_UNKNOWN)
+    {
+      long magnitude = (die < 0) ? -(long)die : (long)die;
+      printf("  die %s%ld.%ldC", (die < 0) ? "-" : "", magnitude / 10L, magnitude % 10L);
+    }
+    printf("  OV %u  UV %u\n", ((status.status & CAN_FRAMES_IC_ANY_OV) != 0U) ? 1U : 0U,
+           ((status.status & CAN_FRAMES_IC_ANY_UV) != 0U) ? 1U : 0U);
+  }
   for (uint8_t ch = 0; ch < CAN_FRAMES_CHANNELS_PER_IC; ch++)
   {
     printf("  C%-2u ", ch + 1U);
-    print_volts(chip->cell.c_codes[ch]);
+    print_cell(ic[i].cell.c_codes[ch]);
     if ((ch % 4U) == 3U)
     {
       printf("\n");
@@ -326,7 +344,7 @@ static void report_ic(uint8_t i)
   }
 }
 
-static void report(void)
+static void report(uint16_t status_failed)
 {
   uint32_t now = HAL_GetTick();
   can_tx_counters_t tx = can_tx_counters();
@@ -340,7 +358,7 @@ static void report(void)
          ((esr & CAN_ESR_EPVF) != 0U) ? "  error-passive" : "");
   for (uint8_t i = 0; i < TOTAL_IC; i++)
   {
-    report_ic(i);
+    report_ic(i, status_failed);
   }
 }
 
@@ -359,6 +377,13 @@ static void report_can_timing(const CAN_TypeDef *can)
 
 void bms_monitor_init(void)
 {
+  memset(ic, 0, sizeof ic);
+  memset(pec_fail_run, 0, sizeof pec_fail_run);
+  chain_state = CHAIN_INIT;
+  invalid_ics = ALL_ICS;
+  all_invalid_run = 0U;
+  cycle_count = 0U;
+  last_cycle_ms = HAL_GetTick();
   for (uint8_t i = 0; i < TOTAL_IC; i++)
   {
     ic[i].tx_cfga.refon = PWR_UP;
@@ -403,7 +428,7 @@ void bms_monitor_run(void)
   send_frames(status_cycle, status_failed);
   if ((cycle_count % BMS_REPORT_EVERY) == 0U)
   {
-    report();
+    report(status_failed);
   }
   cycle_count++;
 }
