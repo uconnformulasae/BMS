@@ -11,7 +11,7 @@
 #include <string.h>
 
 #include "adbms_main.h"
-#include "adBms6830CmdList.h"   /* defines the opcode arrays: include it in this file only */
+#include "adBms6830CmdList.h"
 #include "bms_config.h"
 #include "can_frames.h"
 #include "can_tx.h"
@@ -27,12 +27,11 @@ typedef enum
   CHAIN_RUNNING = CAN_FRAMES_CHAIN_RUNNING,
 } chain_state_t;
 
-/* Set by bms_monitor_init(). */
 static cell_asic ic[TOTAL_IC];
 static chain_state_t chain_state;
 static uint32_t cycle_count;
 static uint32_t last_cycle_ms;
-static uint16_t invalid_ics;            /* bit i: IC i has no valid data this cycle */
+static uint16_t invalid_ics;
 static uint8_t invalid_run[TOTAL_IC];
 static uint8_t all_invalid_run;
 
@@ -63,8 +62,6 @@ static uint8_t pec_error(const cell_asic *chip, TYPE type)
   }
 }
 
-/* ADI's driver overwrites each IC's PEC flag for a register type on every read,
-   so collect it straight after the read. Returns the ICs whose PEC failed. */
 static uint16_t read_group(uint8_t cmd[2], TYPE type, GRP group)
 {
   adBmsReadData(TOTAL_IC, ic, cmd, type, group);
@@ -79,7 +76,6 @@ static uint16_t read_group(uint8_t cmd[2], TYPE type, GRP group)
   return failed;
 }
 
-/* Snapshots and reads all 16 cell results. Returns the ICs whose PEC failed. */
 static uint16_t read_cells(void)
 {
   adBms6830_Snap();
@@ -93,15 +89,11 @@ static uint16_t read_cells(void)
   return failed;
 }
 
-/* Starts an aux-ADC conversion of the die temperature. ADCV only converts the
-   cells, so without this ITMP never leaves its power-on value. */
 static void start_die_temp_conversion(void)
 {
   adBms6830_Adax(AUX_OW_OFF, PUP_DOWN, TEMP);
 }
 
-/* Die temperature (A), THSD/SPIFLT (C) and per-cell OV/UV (D), then starts the
-   die-temperature conversion the next status read will see. */
 static uint16_t read_status(void)
 {
   uint16_t failed = read_group(RDSTATA, Status, A);
@@ -111,10 +103,6 @@ static uint16_t read_status(void)
   return failed;
 }
 
-/* Reads the config back. Returns the ICs that read back PEC-clean but different
-   from what was written; *pec_failed gets the ICs whose readback failed PEC.
-   Only REFON/VOV/VUV are compared: other bits (GPO, for one) can read back
-   live state rather than the written value. */
 static uint16_t config_mismatch(uint16_t *pec_failed)
 {
   *pec_failed = read_group(RDCFGA, Config, A) | read_group(RDCFGB, Config, B);
@@ -132,8 +120,6 @@ static uint16_t config_mismatch(uint16_t *pec_failed)
   return mismatch;
 }
 
-/* A PEC-clean IC whose populated channels read 0x8000 has reset: its result
-   registers are at their power-on value and no conversions are running. */
 static bool chip_reset_seen(void)
 {
   for (uint8_t i = 0; i < TOTAL_IC; i++)
@@ -153,9 +139,6 @@ static bool chip_reset_seen(void)
   return false;
 }
 
-/* INIT: wake the chain, write the config, start continuous cell conversion
-   and a die-temperature conversion, and confirm the config stuck. The first
-   cell read is a full cycle later, which covers the conversion warm-up. */
 static void start_chain(void)
 {
   adBmsForceWakeupIc(TOTAL_IC);
@@ -171,10 +154,9 @@ static void start_chain(void)
   }
 }
 
-/* One RUNNING cycle. Returns the ICs whose status read failed PEC. */
 static uint16_t measure(bool status_cycle, bool config_cycle)
 {
-  adBmsWakeupIc(TOTAL_IC);              /* spiSendCmd() never wakes, and SNAP goes first */
+  adBmsWakeupIc(TOTAL_IC);
   uint16_t failed = read_cells();
   if (failed != 0U)
   {
@@ -229,11 +211,11 @@ static can_frames_ic_t ic_status(uint8_t i, uint16_t status_failed)
     .cmd_count = 0U,
     .invalid_run = invalid_run[i],
     .die_temp_0p1c = CAN_FRAMES_TEMP_UNKNOWN,
-    .balance_mask = 0U,                 /* balancing not implemented */
+    .balance_mask = 0U,
   };
   if ((((invalid_ics | status_failed) >> i) & 1U) != 0U)
   {
-    return status;                      /* nothing trustworthy: report the PEC failure only */
+    return status;
   }
   status.status = 0U;
   if (can_frames_any_flag(ic[i].statd.c_ov, BMS_CHANNEL_MASK))
@@ -291,9 +273,6 @@ static void send_frames(bool status_cycle, uint16_t status_failed)
   }
 }
 
-/* Prints a cell as the CAN frames carry it, e.g. "3.7121V", except that a
-   negative reading keeps its sign (the frames clamp it to 0 V) and 0x8000, a
-   register that never converted, prints as "----". */
 static void print_cell(int16_t code)
 {
   if (code == CAN_FRAMES_RESET_CODE)
@@ -301,14 +280,11 @@ static void print_cell(int16_t code)
     printf("   ----");
     return;
   }
-  /* V = (code + 10000) * 150 uV, so codes c and -20000 - c lie the same
-     distance either side of 0 V. */
   bool negative = code < -10000;
   unsigned tenth_mv = can_frames_cell_0p1mv(negative ? (int16_t)(-20000 - code) : code);
   printf("%s%u.%04uV", negative ? "-" : "", tenth_mv / 10000U, tenth_mv % 10000U);
 }
 
-/* One IC's report lines, built from exactly what its CAN frames carry. */
 static void report_ic(uint8_t i, uint16_t status_failed)
 {
   if (((invalid_ics >> i) & 1U) != 0U)
@@ -387,7 +363,7 @@ void bms_monitor_init(void)
   for (uint8_t i = 0; i < TOTAL_IC; i++)
   {
     ic[i].tx_cfga.refon = PWR_UP;
-    ic[i].tx_cfga.gpo = 0x3FFU;         /* all GPIO pull-downs off */
+    ic[i].tx_cfga.gpo = 0x3FFU;
     ic[i].tx_cfgb.vov = SetOverVoltageThreshold(BMS_OV_THRESHOLD_V);
     ic[i].tx_cfgb.vuv = SetUnderVoltageThreshold(BMS_UV_THRESHOLD_V);
   }

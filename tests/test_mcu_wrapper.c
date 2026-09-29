@@ -29,8 +29,6 @@ uint32_t SystemCoreClock = 16000000U;
 static DWT_Type dwt_regs;
 static unsigned cs_edges;
 
-/* Every access to DWT advances the counter while both enable bits are set, as
-   the real counter keeps running between reads; otherwise it holds still. */
 DWT_Type *fake_dwt(void)
 {
   if (((fake_core_debug.DEMCR & CoreDebug_DEMCR_TRCENA_Msk) != 0U) &&
@@ -80,18 +78,16 @@ static void spun_forever(int signal_number)
   _exit(1);
 }
 
-/* Starts the fake cycle counter, as cycleCount() leaves it on hardware. */
 static void count_cycles(void)
 {
   fake_core_debug.DEMCR = CoreDebug_DEMCR_TRCENA_Msk;
   dwt_regs.CTRL = DWT_CTRL_CYCCNTENA_Msk;
 }
 
-/* Must run first: nothing has touched the chain yet. */
 static void test_first_wakeup_wakes_the_chain(void)
 {
   count_cycles();
-  dwt_regs.CYCCNT = 0U;                        /* just after reset: within 2 ms of the last CS rising edge's initial 0 */
+  dwt_regs.CYCCNT = 0U;
   cs_edges = 0U;
   adBmsWakeupIc(2);
   CHECK_EQ(cs_edges, 4);
@@ -100,7 +96,7 @@ static void test_first_wakeup_wakes_the_chain(void)
 static void test_wakeup_is_skipped_while_the_chain_is_awake(void)
 {
   count_cycles();
-  adBmsForceWakeupIc(2);                       /* the chain has just seen chip select */
+  adBmsForceWakeupIc(2);
   cs_edges = 0U;
   adBmsWakeupIc(2);
   CHECK_EQ(cs_edges, 0);
@@ -110,7 +106,7 @@ static void test_wakeup_wakes_a_chain_quiet_for_over_2_ms(void)
 {
   count_cycles();
   adBmsForceWakeupIc(2);
-  dwt_regs.CYCCNT += 2000U * 16U;              /* 2 ms at 16 MHz */
+  dwt_regs.CYCCNT += 2000U * 16U;
   cs_edges = 0U;
   adBmsWakeupIc(2);
   CHECK_EQ(cs_edges, 4);
@@ -118,14 +114,14 @@ static void test_wakeup_wakes_a_chain_quiet_for_over_2_ms(void)
 
 static void test_wakeup_restarts_a_cycle_counter_a_debugger_stopped(void)
 {
-  fake_core_debug.DEMCR = 0U;                  /* as a debugger detaching or setting up SWV can leave it */
+  fake_core_debug.DEMCR = 0U;
   dwt_regs.CTRL = 0U;
   cs_edges = 0U;
   signal(SIGALRM, spun_forever);
   alarm(2);
   adBmsForceWakeupIc(2);
   alarm(0);
-  CHECK_EQ(cs_edges, 4);                       /* chip select low then high, once per IC */
+  CHECK_EQ(cs_edges, 4);
 }
 
 int main(void)

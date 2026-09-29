@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file    can_frames.c
-  * @brief   CAN2 telemetry frame encoding; the layout is in can_frames.h.
+  * @brief   CAN2 telemetry frame encoding.
   ******************************************************************************
   */
 #include "can_frames.h"
@@ -20,7 +20,6 @@ uint16_t can_frames_cell_0p1mv(int16_t code)
   {
     return CAN_FRAMES_NO_DATA;
   }
-  /* V = (code + 10000) * 150 uV, i.e. 1.5 * (code + 10000) in 0.1 mV. */
   int32_t x = (int32_t)code + 10000;
   if (x <= 0)
   {
@@ -35,7 +34,6 @@ int16_t can_frames_die_temp_0p1c(int16_t code)
   {
     return CAN_FRAMES_TEMP_UNKNOWN;
   }
-  /* (code + 10000) * 150 uV / 7.5 mV - 273 C = (code + 10000) / 5 - 2730 in 0.1 C. */
   int32_t x = (int32_t)code + 10000;
   return (int16_t)((x + 2) / 5 - 2730);
 }

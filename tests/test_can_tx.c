@@ -17,8 +17,6 @@ static int failures;
     }                                                                                \
   } while (0)
 
-/* Fake bxCAN: free_mailboxes is what the "hardware" has room for; every frame
-   handed to a mailbox is recorded in mailbox_ids. */
 static CAN_TypeDef regs;
 static CAN_HandleTypeDef hcan2 = { .Instance = &regs };
 static CAN_HandleTypeDef other_can = { .Instance = &regs };
@@ -62,8 +60,6 @@ HAL_StatusTypeDef HAL_CAN_AddTxMessage(CAN_HandleTypeDef *hcan, const CAN_TxHead
   {
     return HAL_ERROR;
   }
-  /* bxCAN clears a mailbox's completion flags when the mailbox is loaded; the
-     fake reuses a completed mailbox first. */
   for (uint32_t rqcp = CAN_TSR_RQCP0; rqcp <= CAN_TSR_RQCP2; rqcp <<= 8)
   {
     if ((regs.TSR & rqcp) != 0U)
@@ -89,7 +85,6 @@ HAL_StatusTypeDef HAL_CAN_ResetError(CAN_HandleTypeDef *hcan)
   return HAL_OK;
 }
 
-/* What HAL_CAN_IRQHandler does for each mailbox whose request completed. */
 static void run_tx_interrupt(void)
 {
   static void (*const complete[3])(CAN_HandleTypeDef *) = {
@@ -156,7 +151,7 @@ static void test_queued_frames_follow_in_order_as_mailboxes_free(void)
 
 static void test_full_queue_drops_instead_of_blocking(void)
 {
-  reset(0);                                    /* nothing on the bus ACKs: mailboxes never free */
+  reset(0);
   send_ids(0x700, 70);
   CHECK_EQ(can_tx_counters().dropped, 6);
 }
@@ -165,15 +160,12 @@ static void test_new_cycle_drops_stale_frames_and_aborts_mailboxes(void)
 {
   reset(0);
   send_ids(0x700, 10);
-  regs.TSR = CAN_TSR_RQCP0;                    /* mailbox 0 finished; its interrupt has not run yet */
+  regs.TSR = CAN_TSR_RQCP0;
   can_tx_begin_cycle();
   CHECK_EQ(can_tx_counters().dropped, 10);
-  /* The fake TSR keeps what was written: the three abort requests, and a 0 to
-     RQCP0. Writing its 1 back would clear the completion before the
-     interrupt counts it. */
   CHECK_EQ(regs.TSR, CAN_TSR_ABRQ0 | CAN_TSR_ABRQ1 | CAN_TSR_ABRQ2);
   free_mailboxes = 3;
-  send_ids(0x6FF, 1);                          /* the new cycle's first frame goes out */
+  send_ids(0x6FF, 1);
   CHECK_EQ(n_mailboxed, 1);
   CHECK_EQ(mailbox_ids[0], 0x6FF);
 }
@@ -181,9 +173,9 @@ static void test_new_cycle_drops_stale_frames_and_aborts_mailboxes(void)
 static void test_aborted_mailboxes_count_as_dropped(void)
 {
   reset(0);
-  HAL_CAN_TxMailbox0AbortCallback(&hcan2);     /* aborted before any attempt */
+  HAL_CAN_TxMailbox0AbortCallback(&hcan2);
   hcan2.ErrorCode = HAL_CAN_ERROR_TX_TERR0 | HAL_CAN_ERROR_TX_ALST2;
-  HAL_CAN_ErrorCallback(&hcan2);               /* aborted after failed attempts */
+  HAL_CAN_ErrorCallback(&hcan2);
   CHECK_EQ(can_tx_counters().dropped, 3);
   CHECK_EQ(hcan2.ErrorCode, 0);
 }
@@ -203,11 +195,11 @@ static void test_controller_that_did_not_start_drops_everything(void)
 static void test_completion_pending_during_a_send_is_still_counted(void)
 {
   reset(1);
-  regs.TSR = CAN_TSR_RQCP0;                    /* mailbox 0 finished; its interrupt has not run yet */
+  regs.TSR = CAN_TSR_RQCP0;
   send_ids(0x700, 1);
   run_tx_interrupt();
   CHECK_EQ(can_tx_counters().sent, 1);
-  CHECK_EQ(n_mailboxed, 1);                    /* and the new frame still goes out */
+  CHECK_EQ(n_mailboxed, 1);
   CHECK_EQ(mailbox_ids[0], 0x700);
 }
 

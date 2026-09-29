@@ -8,20 +8,18 @@
   */
 #include "can_tx.h"
 
-#define QUEUE_LEN 64U   /* power of two, so free-running indices survive wrap-around */
+#define QUEUE_LEN 64U
 
 #define TX_UNSENT_ERRORS (HAL_CAN_ERROR_TX_ALST0 | HAL_CAN_ERROR_TX_TERR0 | \
                           HAL_CAN_ERROR_TX_ALST1 | HAL_CAN_ERROR_TX_TERR1 | \
                           HAL_CAN_ERROR_TX_ALST2 | HAL_CAN_ERROR_TX_TERR2)
 
-static CAN_HandleTypeDef *can;          /* NULL until can_tx_init() succeeds */
+static CAN_HandleTypeDef *can;
 static can_frame_t queue[QUEUE_LEN];
-static uint32_t head;                   /* next slot to fill, free-running */
-static uint32_t tail;                   /* next slot to send, free-running */
+static uint32_t head;
+static uint32_t tail;
 static can_tx_counters_t counters;
 
-/* Moves queued frames into free mailboxes. Call with interrupts masked or from
-   the CAN TX interrupt. */
 static void pump(void)
 {
   while ((tail != head) && (HAL_CAN_GetTxMailboxesFreeLevel(can) > 0U))
@@ -43,8 +41,6 @@ static void pump(void)
   }
 }
 
-/* True while a mailbox has finished but the TX interrupt has not yet counted
-   it: loading that mailbox now would clear its completion flags unseen. */
 static bool completion_pending(void)
 {
   return (can->Instance->TSR & (CAN_TSR_RQCP0 | CAN_TSR_RQCP1 | CAN_TSR_RQCP2)) != 0U;
@@ -74,8 +70,6 @@ bool can_tx_init(CAN_HandleTypeDef *hcan)
   tail = 0U;
   counters = (can_tx_counters_t){0};
 
-  /* Nothing is received yet, but one bank must be written so the shared filter
-     block leaves init mode. Banks 14..27 belong to CAN2. */
   const CAN_FilterTypeDef filter = {
     .FilterBank = 14U,
     .FilterMode = CAN_FILTERMODE_IDMASK,
@@ -102,9 +96,6 @@ void can_tx_begin_cycle(void)
   tail = head;
   if (can != NULL)
   {
-    /* Pending mailboxes hold last cycle's frames. A plain write, because HAL's
-       read-modify-write of TSR would also clear completion flags that the TX
-       interrupt has not handled yet. */
     can->Instance->TSR = CAN_TSR_ABRQ0 | CAN_TSR_ABRQ1 | CAN_TSR_ABRQ2;
   }
   __set_PRIMASK(primask);
@@ -124,7 +115,7 @@ void can_tx_send(const can_frame_t *frame)
     head++;
     if (!completion_pending())
     {
-      pump();                           /* otherwise the pending TX interrupt counts, then refills */
+      pump();
     }
   }
   __set_PRIMASK(primask);
@@ -146,8 +137,6 @@ void HAL_CAN_TxMailbox0AbortCallback(CAN_HandleTypeDef *hcan) { mailbox_done(hca
 void HAL_CAN_TxMailbox1AbortCallback(CAN_HandleTypeDef *hcan) { mailbox_done(hcan, false); }
 void HAL_CAN_TxMailbox2AbortCallback(CAN_HandleTypeDef *hcan) { mailbox_done(hcan, false); }
 
-/* With auto-retransmission on, a mailbox only ends unsent when an abort lands
-   after a failed attempt, and HAL reports that as a TX error, not an abort. */
 void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
 {
   if (hcan != can)

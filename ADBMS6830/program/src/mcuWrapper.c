@@ -19,23 +19,20 @@ and its licensor.
 #include "common.h"
 #include "mcuWrapper.h"
 
-#define SPI_TIME_OUT 10U                        /* SPI time out (ms); a failed transfer then fails PEC */
-#define WAKEUP_PULSE_US 500U                    /* CS low and high time per IC: tWAKE max, datasheet Table 7 */
-#define WAKEUP_QUIET_US 2000U                   /* chain counts as awake this long after a CS rising edge */
+#define SPI_TIME_OUT 10U
+#define WAKEUP_PULSE_US 500U
+#define WAKEUP_QUIET_US 2000U
 
 SPI_HandleTypeDef *hspi         = &hspi1;       /* MUC SPI Handler      */
 
-static uint32_t last_cs_high;                   /* DWT cycle count at the last CS rising edge */
-static bool chain_touched;                      /* false until the first transaction */
+static uint32_t last_cs_high;
+static bool chain_touched;
 
 static uint32_t usToCycles(uint32_t us)
 {
   return us * (SystemCoreClock / 1000000U);
 }
 
-/* The DWT cycle count, re-enabling the counter first: a debugger attaching,
-   detaching or setting up SWV can clear its enable bits, and the wake-up
-   timing must never wait on a stopped counter. */
 static uint32_t cycleCount(void)
 {
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
@@ -176,20 +173,6 @@ void spiReadBytes(uint16_t size, uint8_t *rx_data)
   HAL_SPI_Receive(hspi, rx_data, size, SPI_TIME_OUT);
 }
 
-/**
- *******************************************************************************
- * Function: adBmsForceWakeupIc
- * @brief Wakeup bms ic using chip select, unconditionally
- *
- * @details This function sends one chip select pulse per ic, each pulse long enough to
- *          wake one device, so the whole daisy chain wakes in sequence.
- *
- * @param [in]  total_ic    Total_ic
- *
- * @return None
- *
- *******************************************************************************
-*/
 void adBmsForceWakeupIc(uint8_t total_ic)
 {   
   for (uint8_t ic = 0; ic < total_ic; ic++)
@@ -201,20 +184,6 @@ void adBmsForceWakeupIc(uint8_t total_ic)
   }
 }
 
-/**
- *******************************************************************************
- * Function: adBmsWakeupIc
- * @brief Wakeup bms ic using chip select
- *
- * @details This function wakes the chain unless it saw traffic within WAKEUP_QUIET_US,
- *          so back-to-back transactions in one measurement cycle pay for one wake-up.
- *
- * @param [in]  total_ic    Total_ic
- *
- * @return None
- *
- *******************************************************************************
-*/
 void adBmsWakeupIc(uint8_t total_ic)
 {
   bool awake = chain_touched && ((cycleCount() - last_cs_high) < usToCycles(WAKEUP_QUIET_US));

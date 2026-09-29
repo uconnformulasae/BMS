@@ -1,5 +1,4 @@
-/* Host stand-in for ADI's ADBMS6830 driver: a scripted model of the isoSPI
-   chain that the bms_monitor tests drive. */
+/* Host fake for ADBMS6830 driver */
 #ifndef FAKE_ADBMS_H
 #define FAKE_ADBMS_H
 
@@ -9,17 +8,17 @@
 
 typedef struct
 {
-  int16_t  cells[FAKE_MAX_IC][CELL];   /* cell result registers */
-  int16_t  die_temp;                   /* ITMP after an aux conversion of TEMP */
-  bool     die_temp_converted;         /* until then ITMP holds its power-on 0x8000 */
-  stc_     statc[FAKE_MAX_IC];         /* status group C: THSD, SPIFLT, ... */
-  std_     statd[FAKE_MAX_IC];         /* status group D: per-cell OV/UV flags */
-  cfa_     cfga[FAKE_MAX_IC];          /* configuration registers as last written */
+  int16_t  cells[FAKE_MAX_IC][CELL];
+  int16_t  die_temp;
+  bool     die_temp_converted;
+  stc_     statc[FAKE_MAX_IC];
+  std_     statd[FAKE_MAX_IC];
+  cfa_     cfga[FAKE_MAX_IC];
   cfb_     cfgb[FAKE_MAX_IC];
-  uint16_t cell_pec_fail;              /* ICs whose cell reads fail PEC ... */
-  uint32_t cell_pec_fail_reads;        /* ... for this many more group reads */
-  uint16_t status_pec_fail;            /* ICs whose status reads fail PEC */
-  bool     absent;                     /* nothing on the chain answers */
+  uint16_t cell_pec_fail;
+  uint32_t cell_pec_fail_reads;
+  uint16_t status_pec_fail;
+  bool     absent;
   uint32_t forced_wakes;
 } fake_chain_t;
 

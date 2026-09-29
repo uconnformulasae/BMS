@@ -1,6 +1,4 @@
-/* Host stand-in for Core/Inc/main.h: only the HAL and CMSIS pieces that the
-   host-tested code uses. Values match the STM32F1 HAL/CMSIS headers where
-   they matter to the tests. */
+/* Fake HAL and CMSIS definitions for host tests */
 #ifndef FAKE_MAIN_H
 #define FAKE_MAIN_H
 
@@ -10,13 +8,11 @@ typedef enum { HAL_OK = 0, HAL_ERROR = 1 } HAL_StatusTypeDef;
 
 #define DISABLE 0U
 
-/* System ------------------------------------------------------------------ */
 extern uint32_t SystemCoreClock;
 uint32_t HAL_GetTick(void);
 void HAL_Delay(uint32_t Delay);
 uint32_t HAL_RCC_GetPCLK1Freq(void);
 
-/* GPIO and SPI (the isoSPI port) ------------------------------------------ */
 typedef struct
 {
   uint32_t ODR;
@@ -37,8 +33,6 @@ void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState Pin
 HAL_StatusTypeDef HAL_SPI_Transmit(SPI_HandleTypeDef *hspi, const uint8_t *pData, uint16_t Size, uint32_t Timeout);
 HAL_StatusTypeDef HAL_SPI_Receive(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size, uint32_t Timeout);
 
-/* DWT cycle counter. DWT goes through fake_dwt() so a test can model the
-   counter running only while both enable bits are set. */
 typedef struct
 {
   uint32_t CTRL;
@@ -60,13 +54,12 @@ extern CoreDebug_Type fake_core_debug;
 #define DWT       (fake_dwt())
 #define CoreDebug (&fake_core_debug)
 
-/* ITM stimulus port 0, the SWO output --------------------------------------- */
 typedef struct
 {
   union
   {
     volatile uint8_t  u8;
-    volatile uint32_t u32;              /* reads 0 while the port's FIFO is full */
+    volatile uint32_t u32;
   } PORT[1];
   volatile uint32_t TER;
   volatile uint32_t TCR;
@@ -77,8 +70,6 @@ typedef struct
 extern ITM_Type fake_itm;
 #define ITM (&fake_itm)
 
-/* CMSIS's ITM_SendChar(): with ITM and port 0 enabled it waits, with no limit,
-   for the port to take the character. */
 static inline uint32_t ITM_SendChar(uint32_t ch)
 {
   if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) && ((ITM->TER & 1UL) != 0UL))
@@ -91,7 +82,6 @@ static inline uint32_t ITM_SendChar(uint32_t ch)
   return ch;
 }
 
-/* bxCAN ------------------------------------------------------------------- */
 typedef struct
 {
   uint32_t TSR;
@@ -184,7 +174,6 @@ void HAL_CAN_TxMailbox1AbortCallback(CAN_HandleTypeDef *hcan);
 void HAL_CAN_TxMailbox2AbortCallback(CAN_HandleTypeDef *hcan);
 void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan);
 
-/* Interrupt masking --------------------------------------------------------- */
 static inline uint32_t __get_PRIMASK(void) { return 0U; }
 static inline void __disable_irq(void) {}
 static inline void __set_PRIMASK(uint32_t primask) { (void)primask; }

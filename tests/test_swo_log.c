@@ -36,10 +36,10 @@ static void waited_forever(int signal_number)
 
 static void test_output_never_waits_without_a_debugger(void)
 {
-  fake_core_debug.DHCSR = 0U;                  /* the probe has disconnected ... */
-  fake_itm.TCR = ITM_TCR_ITMENA_Msk;           /* ... leaving ITM and port 0 enabled */
+  fake_core_debug.DHCSR = 0U;
+  fake_itm.TCR = ITM_TCR_ITMENA_Msk;
   fake_itm.TER = 1U;
-  fake_itm.PORT[0].u32 = 0U;                   /* and the port full, with nothing draining it */
+  fake_itm.PORT[0].u32 = 0U;
   signal(SIGALRM, waited_forever);
   alarm(2);
   CHECK_EQ(__io_putchar('A'), 'A');
@@ -51,7 +51,7 @@ static void test_output_goes_to_itm_port_0_while_a_debugger_is_attached(void)
   fake_core_debug.DHCSR = CoreDebug_DHCSR_C_DEBUGEN_Msk;
   fake_itm.TCR = ITM_TCR_ITMENA_Msk;
   fake_itm.TER = 1U;
-  fake_itm.PORT[0].u32 = 1U;                   /* port 0 ready */
+  fake_itm.PORT[0].u32 = 1U;
   CHECK_EQ(__io_putchar('B'), 'B');
   CHECK_EQ(fake_itm.PORT[0].u8, 'B');
 }
