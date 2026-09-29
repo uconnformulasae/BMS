@@ -163,9 +163,83 @@ static void test_report_marks_a_failed_status_read(void)
   CHECK_EQ(strstr(output, "IC1  cmd count") == NULL, 1);
 }
 
+static unsigned chain_state_sent(void)
+{
+  return frame_u16(BMS_CAN_STATUS_ID, 0) & 0xFFU;
+}
+
+static void test_pec_failure_is_retried_after_a_forced_wake(void)
+{
+  boot();
+  run_cycles(2);                                         /* INIT, then one RUNNING cycle */
+  uint32_t wakes = fake_chain.forced_wakes;
+  fake_chain.cell_pec_fail = 0x0002U;                    /* IC1's next cell read fails PEC */
+  fake_chain.cell_pec_fail_reads = 1U;
+  run_cycles(1);
+  CHECK_EQ(fake_chain.forced_wakes, wakes + 1U);
+  CHECK_EQ(frame_u16(BMS_CAN_STATUS_ID, 2), 0x0000);     /* the retry recovered IC1 */
+}
+
+static void test_chip_reset_codes_send_the_chain_back_to_init(void)
+{
+  boot();
+  run_cycles(2);
+  for (unsigned ch = 0; ch < CELL; ch++)
+  {
+    fake_chain.cells[0][ch] = INT16_MIN;                 /* IC0's results are at their power-on value */
+  }
+  run_cycles(1);
+  CHECK_EQ(chain_state_sent(), CAN_FRAMES_CHAIN_INIT);
+  CHECK_EQ(frame_u16(BMS_CAN_STATUS_ID, 2), 0x0003);
+}
+
+static void test_chain_lost_for_five_cycles_goes_back_to_init(void)
+{
+  boot();
+  run_cycles(2);
+  fake_chain.cell_pec_fail = 0x0003U;                    /* every IC fails from now on */
+  fake_chain.cell_pec_fail_reads = UINT32_MAX;
+  run_cycles(BMS_CHAIN_LOST_CYCLES - 1U);
+  CHECK_EQ(chain_state_sent(), CAN_FRAMES_CHAIN_RUNNING);
+  run_cycles(1);
+  CHECK_EQ(chain_state_sent(), CAN_FRAMES_CHAIN_INIT);
+}
+
+static void test_config_change_sends_the_chain_back_to_init(void)
+{
+  boot();
+  run_cycles(2);
+  fake_chain.cfga[1].refon = 0U;                         /* IC1 lost its configuration */
+  run_cycles(BMS_CONFIG_CHECK_EVERY - 2U);               /* up to the cycle before the readback */
+  CHECK_EQ(chain_state_sent(), CAN_FRAMES_CHAIN_RUNNING);
+  run_cycles(1);
+  CHECK_EQ(chain_state_sent(), CAN_FRAMES_CHAIN_INIT);
+}
+
+static void test_invalid_cycle_count_saturates_at_255(void)
+{
+  boot();
+  fake_chain.absent = true;                              /* nothing answers: INIT every cycle */
+  run_cycles(300U + 1U);                                 /* ends on a status cycle, which sends per-IC frames */
+  CHECK_EQ(frame_u16(BMS_CAN_IC_BASE_ID, 2) >> 8, 255);
+}
+
+static void test_status_frame_cycle_counter_wraps(void)
+{
+  boot();
+  run_cycles(256U + 1U);                                 /* cycles 0 to 256 */
+  CHECK_EQ(frame_u16(BMS_CAN_STATUS_ID, 0) >> 8, 0);
+}
+
 int main(void)
 {
   test_init_starts_the_monitor_from_scratch();
+  test_pec_failure_is_retried_after_a_forced_wake();
+  test_chip_reset_codes_send_the_chain_back_to_init();
+  test_chain_lost_for_five_cycles_goes_back_to_init();
+  test_config_change_sends_the_chain_back_to_init();
+  test_invalid_cycle_count_saturates_at_255();
+  test_status_frame_cycle_counter_wraps();
   test_die_temperature_reaches_the_per_ic_frame();
   test_report_prints_cells_as_the_frames_carry_them();
   test_report_marks_a_failed_status_read();
