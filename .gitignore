@@ -13,3 +13,8 @@
 
 # Eclipse workspace state - machine-specific, not project source.
 /.metadata/
+
+# Host unit test binaries.
+/tests/test_can_frames
+/tests/test_can_tx
+/tests/overflow_config.h
