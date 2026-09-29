@@ -165,8 +165,12 @@ static void test_new_cycle_drops_stale_frames_and_aborts_mailboxes(void)
 {
   reset(0);
   send_ids(0x700, 10);
+  regs.TSR = CAN_TSR_RQCP0;                    /* mailbox 0 finished; its interrupt has not run yet */
   can_tx_begin_cycle();
   CHECK_EQ(can_tx_counters().dropped, 10);
+  /* The fake TSR keeps what was written: the three abort requests, and a 0 to
+     RQCP0. Writing its 1 back would clear the completion before the
+     interrupt counts it. */
   CHECK_EQ(regs.TSR, CAN_TSR_ABRQ0 | CAN_TSR_ABRQ1 | CAN_TSR_ABRQ2);
   free_mailboxes = 3;
   send_ids(0x6FF, 1);                          /* the new cycle's first frame goes out */
