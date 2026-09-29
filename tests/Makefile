@@ -6,7 +6,7 @@ CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -I../App/Inc
 # functions with empty parameter lists, e.g. adBmsCsLow().
 ADI_CFLAGS = $(CFLAGS) -Wno-strict-prototypes -Ifakes -isystem ../ADBMS6830/lib/inc -isystem ../ADBMS6830/program/inc
 
-.PHONY: test clean
+.PHONY: test clean config_check
 test: test_can_frames test_can_tx test_mcu_wrapper test_bms_monitor config_check
 	./test_can_frames
 	./test_can_tx
@@ -30,13 +30,20 @@ bms_monitor_test.o: ../App/Src/bms_monitor.c ../App/Inc/bms_monitor.h ../App/Inc
 test_bms_monitor: test_bms_monitor.c fake_adbms.c fake_adbms.h bms_monitor_test.o ../App/Src/can_frames.c
 	$(CC) $(ADI_CFLAGS) -o $@ test_bms_monitor.c fake_adbms.c bms_monitor_test.o ../App/Src/can_frames.c
 
-# bms_config.h must compile as shipped, and must refuse 10 ICs x 16 channels
-# (160 cells would run the 0x700 cell frames into the 0x720 per-IC frames).
+# bms_config.h must compile as shipped, and must refuse each bad configuration
+# below with its own message, e.g. 10 ICs x 16 channels (160 cells would run
+# the 0x700 cell frames into the 0x720 per-IC frames).
 config_check: ../App/Inc/bms_config.h ../App/Inc/can_frames.h
 	echo '#include "bms_config.h"' | $(CC) $(CFLAGS) -fsyntax-only -x c -
-	sed 's/^#define TOTAL_IC .*/#define TOTAL_IC 10U/' ../App/Inc/bms_config.h > overflow_config.h
-	! echo '#include "overflow_config.h"' | $(CC) $(CFLAGS) -I. -fsyntax-only -x c - 2>/dev/null
-	rm -f overflow_config.h
+	sed 's/^#define TOTAL_IC .*/#define TOTAL_IC 10U/' ../App/Inc/bms_config.h > bad_config.h
+	echo '#include "bad_config.h"' | $(CC) $(CFLAGS) -I. -fsyntax-only -x c - 2>&1 | grep -q 'too many cells'
+	sed 's/^#define BMS_CHANNEL_MASK .*/#define BMS_CHANNEL_MASK 0x0000U/' ../App/Inc/bms_config.h > bad_config.h
+	echo '#include "bad_config.h"' | $(CC) $(CFLAGS) -I. -fsyntax-only -x c - 2>&1 | grep -q 'select 1 to 16 channels'
+	sed 's/^#define BMS_CHANNEL_MASK .*/#define BMS_CHANNEL_MASK 0x10000U/' ../App/Inc/bms_config.h > bad_config.h
+	echo '#include "bad_config.h"' | $(CC) $(CFLAGS) -I. -fsyntax-only -x c - 2>&1 | grep -q 'select 1 to 16 channels'
+	sed 's/^#define BMS_REPORT_EVERY .*/#define BMS_REPORT_EVERY 7U/' ../App/Inc/bms_config.h > bad_config.h
+	echo '#include "bad_config.h"' | $(CC) $(CFLAGS) -I. -fsyntax-only -x c - 2>&1 | grep -q 'fall on a status cycle'
+	rm -f bad_config.h
 
 clean:
-	rm -f test_can_frames test_can_tx test_mcu_wrapper test_bms_monitor bms_monitor_test.o overflow_config.h
+	rm -f test_can_frames test_can_tx test_mcu_wrapper test_bms_monitor bms_monitor_test.o bad_config.h

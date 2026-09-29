@@ -40,5 +40,9 @@ _Static_assert((TOTAL_IC >= 1U) && (BMS_CAN_IC_BASE_ID + TOTAL_IC <= BMS_CAN_TEM
                "TOTAL_IC must be 1..16: per-IC frames must stay below 0x730 and fit the invalid-IC bitmap");
 _Static_assert(BMS_CAN_CELL_BASE_ID + BMS_CELL_FRAME_COUNT <= BMS_CAN_IC_BASE_ID,
                "too many cells: the 0x700 cell frames would run into the 0x720 per-IC frames");
+_Static_assert((BMS_CHANNEL_MASK != 0U) && (BMS_CHANNEL_MASK <= 0xFFFFU),
+               "BMS_CHANNEL_MASK must select 1 to 16 channels");
+_Static_assert((BMS_REPORT_EVERY % BMS_STATUS_EVERY) == 0U,
+               "the SWO report must fall on a status cycle, or it shows stale status");
 
 #endif /* BMS_CONFIG_H */
