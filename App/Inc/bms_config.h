@@ -42,6 +42,9 @@ _Static_assert(BMS_CAN_CELL_BASE_ID + BMS_CELL_FRAME_COUNT <= BMS_CAN_IC_BASE_ID
                "too many cells: the 0x700 cell frames would run into the 0x720 per-IC frames");
 _Static_assert((BMS_CHANNEL_MASK != 0U) && (BMS_CHANNEL_MASK <= 0xFFFFU),
                "BMS_CHANNEL_MASK must select 1 to 16 channels");
+_Static_assert((BMS_CYCLE_MS >= 1U) && (BMS_STATUS_EVERY >= 1U) && (BMS_CONFIG_CHECK_EVERY >= 1U) &&
+               (BMS_REPORT_EVERY >= 1U) && (BMS_CHAIN_LOST_CYCLES >= 1U),
+               "BMS_CYCLE_MS, the *_EVERY periods and BMS_CHAIN_LOST_CYCLES must be at least 1");
 _Static_assert((BMS_REPORT_EVERY % BMS_STATUS_EVERY) == 0U,
                "the SWO report must fall on a status cycle, or it shows stale status");
 

@@ -47,6 +47,10 @@ config_check: ../App/Inc/bms_config.h ../App/Inc/can_frames.h
 	echo '#include "bad_config.h"' | $(CC) $(CFLAGS) -I. -fsyntax-only -x c - 2>&1 | grep -q 'select 1 to 16 channels'
 	sed 's/^#define BMS_REPORT_EVERY .*/#define BMS_REPORT_EVERY 7U/' ../App/Inc/bms_config.h > bad_config.h
 	echo '#include "bad_config.h"' | $(CC) $(CFLAGS) -I. -fsyntax-only -x c - 2>&1 | grep -q 'fall on a status cycle'
+	for name in BMS_CYCLE_MS BMS_STATUS_EVERY BMS_CONFIG_CHECK_EVERY BMS_REPORT_EVERY BMS_CHAIN_LOST_CYCLES; do \
+	  sed "s/^#define $$name .*/#define $$name 0U/" ../App/Inc/bms_config.h > bad_config.h; \
+	  echo '#include "bad_config.h"' | $(CC) $(CFLAGS) -I. -fsyntax-only -x c - 2>&1 | grep -q 'must be at least 1' || exit 1; \
+	done
 	rm -f bad_config.h
 
 clean:
