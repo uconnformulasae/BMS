@@ -1,5 +1,6 @@
-/* Host stand-in for Core/Inc/main.h: only the HAL and CMSIS pieces can_tx.c
-   uses. Values match stm32f1xx_hal_can.h where they matter to the tests. */
+/* Host stand-in for Core/Inc/main.h: only the HAL and CMSIS pieces that the
+   host-tested code uses. Values match the STM32F1 HAL/CMSIS headers where
+   they matter to the tests. */
 #ifndef FAKE_MAIN_H
 #define FAKE_MAIN_H
 
@@ -9,9 +10,60 @@ typedef enum { HAL_OK = 0, HAL_ERROR = 1 } HAL_StatusTypeDef;
 
 #define DISABLE 0U
 
+/* System ------------------------------------------------------------------ */
+extern uint32_t SystemCoreClock;
+uint32_t HAL_GetTick(void);
+void HAL_Delay(uint32_t Delay);
+uint32_t HAL_RCC_GetPCLK1Freq(void);
+
+/* GPIO and SPI (the isoSPI port) ------------------------------------------ */
+typedef struct
+{
+  uint32_t ODR;
+} GPIO_TypeDef;
+
+typedef enum { GPIO_PIN_RESET = 0, GPIO_PIN_SET } GPIO_PinState;
+
+typedef struct
+{
+  uint32_t ErrorCode;
+} SPI_HandleTypeDef;
+
+extern GPIO_TypeDef fake_gpioa;
+#define SPI1_NSS_Pin       0x0010U
+#define SPI1_NSS_GPIO_Port (&fake_gpioa)
+
+void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState PinState);
+HAL_StatusTypeDef HAL_SPI_Transmit(SPI_HandleTypeDef *hspi, const uint8_t *pData, uint16_t Size, uint32_t Timeout);
+HAL_StatusTypeDef HAL_SPI_Receive(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size, uint32_t Timeout);
+
+/* DWT cycle counter. DWT goes through fake_dwt() so a test can model the
+   counter running only while both enable bits are set. */
+typedef struct
+{
+  uint32_t CTRL;
+  uint32_t CYCCNT;
+} DWT_Type;
+
+typedef struct
+{
+  uint32_t DEMCR;
+} CoreDebug_Type;
+
+#define DWT_CTRL_CYCCNTENA_Msk     (1UL << 0)
+#define CoreDebug_DEMCR_TRCENA_Msk (1UL << 24)
+
+DWT_Type *fake_dwt(void);
+extern CoreDebug_Type fake_core_debug;
+#define DWT       (fake_dwt())
+#define CoreDebug (&fake_core_debug)
+
+/* bxCAN ------------------------------------------------------------------- */
 typedef struct
 {
   uint32_t TSR;
+  uint32_t ESR;
+  uint32_t BTR;
 } CAN_TypeDef;
 
 typedef struct
@@ -56,6 +108,22 @@ typedef struct
 #define CAN_TSR_ABRQ1           (1U << 15)
 #define CAN_TSR_ABRQ2           (1U << 23)
 
+#define CAN_ESR_EPVF_Pos        1U
+#define CAN_ESR_EPVF            (0x1UL << CAN_ESR_EPVF_Pos)
+#define CAN_ESR_BOFF_Pos        2U
+#define CAN_ESR_BOFF            (0x1UL << CAN_ESR_BOFF_Pos)
+#define CAN_ESR_TEC_Pos         16U
+#define CAN_ESR_TEC             (0xFFUL << CAN_ESR_TEC_Pos)
+#define CAN_ESR_REC_Pos         24U
+#define CAN_ESR_REC             (0xFFUL << CAN_ESR_REC_Pos)
+
+#define CAN_BTR_BRP_Pos         0U
+#define CAN_BTR_BRP             (0x3FFUL << CAN_BTR_BRP_Pos)
+#define CAN_BTR_TS1_Pos         16U
+#define CAN_BTR_TS1             (0xFUL << CAN_BTR_TS1_Pos)
+#define CAN_BTR_TS2_Pos         20U
+#define CAN_BTR_TS2             (0x7UL << CAN_BTR_TS2_Pos)
+
 #define HAL_CAN_ERROR_TX_ALST0  0x00000800U
 #define HAL_CAN_ERROR_TX_TERR0  0x00001000U
 #define HAL_CAN_ERROR_TX_ALST1  0x00002000U
@@ -80,6 +148,7 @@ void HAL_CAN_TxMailbox1AbortCallback(CAN_HandleTypeDef *hcan);
 void HAL_CAN_TxMailbox2AbortCallback(CAN_HandleTypeDef *hcan);
 void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan);
 
+/* Interrupt masking --------------------------------------------------------- */
 static inline uint32_t __get_PRIMASK(void) { return 0U; }
 static inline void __disable_irq(void) {}
 static inline void __set_PRIMASK(uint32_t primask) { (void)primask; }

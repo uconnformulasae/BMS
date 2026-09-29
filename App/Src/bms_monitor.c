@@ -349,7 +349,6 @@ static void report_can_timing(const CAN_TypeDef *can)
 
 void bms_monitor_init(void)
 {
-  adBmsWrapperInit();
   for (uint8_t i = 0; i < TOTAL_IC; i++)
   {
     ic[i].tx_cfga.refon = PWR_UP;

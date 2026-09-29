@@ -18,3 +18,4 @@
 /tests/test_can_frames
 /tests/test_can_tx
 /tests/overflow_config.h
+/tests/test_mcu_wrapper
