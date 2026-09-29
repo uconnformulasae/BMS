@@ -32,6 +32,14 @@ void adBmsReadData(uint8_t tIC, cell_asic *ic, uint8_t cmd_arg[2], TYPE type, GR
         {
           ic[i].stata.itmp = (uint16_t)(fake_chain.die_temp_converted ? fake_chain.die_temp : INT16_MIN);
         }
+        else if (group == C)
+        {
+          ic[i].statc = fake_chain.statc[i];
+        }
+        else if (group == D)
+        {
+          ic[i].statd = fake_chain.statd[i];
+        }
         ic[i].cccrc.stat_pec = pec_error(fake_chain.status_pec_fail, i);
         break;
       case Config:

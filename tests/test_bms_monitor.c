@@ -142,6 +142,47 @@ static void test_die_temperature_reaches_the_per_ic_frame(void)
   CHECK_EQ(frame_u16(BMS_CAN_IC_BASE_ID, 4), 250);
 }
 
+static unsigned ic_status_sent(unsigned i)
+{
+  return frame_u16((uint16_t)(BMS_CAN_IC_BASE_ID + i), 0) >> 8;
+}
+
+static void test_overvoltage_flag_reaches_the_per_ic_frame(void)
+{
+  boot();
+  fake_chain.statd[1].c_ov[15] = 1U;                     /* IC1, cell 16 */
+  run_cycles(1U + BMS_STATUS_EVERY);                     /* INIT, then to the first RUNNING status cycle */
+  CHECK_EQ(ic_status_sent(0), 0);
+  CHECK_EQ(ic_status_sent(1), CAN_FRAMES_IC_ANY_OV);
+}
+
+static void test_undervoltage_flag_reaches_the_per_ic_frame(void)
+{
+  boot();
+  fake_chain.statd[1].c_uv[0] = 1U;                      /* IC1, cell 1 */
+  run_cycles(1U + BMS_STATUS_EVERY);
+  CHECK_EQ(ic_status_sent(0), 0);
+  CHECK_EQ(ic_status_sent(1), CAN_FRAMES_IC_ANY_UV);
+}
+
+static void test_thermal_shutdown_flag_reaches_the_per_ic_frame(void)
+{
+  boot();
+  fake_chain.statc[1].thsd = 1U;
+  run_cycles(1U + BMS_STATUS_EVERY);
+  CHECK_EQ(ic_status_sent(0), 0);
+  CHECK_EQ(ic_status_sent(1), CAN_FRAMES_IC_THSD);
+}
+
+static void test_spi_fault_flag_reaches_the_per_ic_frame(void)
+{
+  boot();
+  fake_chain.statc[1].spiflt = 1U;
+  run_cycles(1U + BMS_STATUS_EVERY);
+  CHECK_EQ(ic_status_sent(0), 0);
+  CHECK_EQ(ic_status_sent(1), CAN_FRAMES_IC_SPIFLT);
+}
+
 static void test_report_prints_cells_as_the_frames_carry_them(void)
 {
   boot();
@@ -241,6 +282,10 @@ int main(void)
   test_invalid_cycle_count_saturates_at_255();
   test_status_frame_cycle_counter_wraps();
   test_die_temperature_reaches_the_per_ic_frame();
+  test_overvoltage_flag_reaches_the_per_ic_frame();
+  test_undervoltage_flag_reaches_the_per_ic_frame();
+  test_thermal_shutdown_flag_reaches_the_per_ic_frame();
+  test_spi_fault_flag_reaches_the_per_ic_frame();
   test_report_prints_cells_as_the_frames_carry_them();
   test_report_marks_a_failed_status_read();
   if (failures != 0)

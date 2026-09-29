@@ -12,6 +12,8 @@ typedef struct
   int16_t  cells[FAKE_MAX_IC][CELL];   /* cell result registers */
   int16_t  die_temp;                   /* ITMP after an aux conversion of TEMP */
   bool     die_temp_converted;         /* until then ITMP holds its power-on 0x8000 */
+  stc_     statc[FAKE_MAX_IC];         /* status group C: THSD, SPIFLT, ... */
+  std_     statd[FAKE_MAX_IC];         /* status group D: per-cell OV/UV flags */
   cfa_     cfga[FAKE_MAX_IC];          /* configuration registers as last written */
   cfb_     cfgb[FAKE_MAX_IC];
   uint16_t cell_pec_fail;              /* ICs whose cell reads fail PEC ... */
