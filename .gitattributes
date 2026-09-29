@@ -1,0 +1,4 @@
+# ADI's ADBMS6830 driver stays byte-identical to their delivery, CRLF line
+# endings included: git must not convert them, and diffs treat the CR as part
+# of the line ending rather than trailing whitespace.
+/ADBMS6830/** -text whitespace=cr-at-eol
