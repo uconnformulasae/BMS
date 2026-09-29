@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "bms_monitor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,7 +101,7 @@ int main(void)
   MX_CAN2_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-
+  bms_monitor_init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -111,6 +111,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    bms_monitor_run();
   }
   /* USER CODE END 3 */
 }
