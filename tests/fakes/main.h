@@ -47,16 +47,49 @@ typedef struct
 
 typedef struct
 {
+  uint32_t DHCSR;
   uint32_t DEMCR;
 } CoreDebug_Type;
 
-#define DWT_CTRL_CYCCNTENA_Msk     (1UL << 0)
-#define CoreDebug_DEMCR_TRCENA_Msk (1UL << 24)
+#define DWT_CTRL_CYCCNTENA_Msk        (1UL << 0)
+#define CoreDebug_DHCSR_C_DEBUGEN_Msk (1UL << 0)
+#define CoreDebug_DEMCR_TRCENA_Msk    (1UL << 24)
 
 DWT_Type *fake_dwt(void);
 extern CoreDebug_Type fake_core_debug;
 #define DWT       (fake_dwt())
 #define CoreDebug (&fake_core_debug)
+
+/* ITM stimulus port 0, the SWO output --------------------------------------- */
+typedef struct
+{
+  union
+  {
+    volatile uint8_t  u8;
+    volatile uint32_t u32;              /* reads 0 while the port's FIFO is full */
+  } PORT[1];
+  volatile uint32_t TER;
+  volatile uint32_t TCR;
+} ITM_Type;
+
+#define ITM_TCR_ITMENA_Msk (1UL << 0)
+
+extern ITM_Type fake_itm;
+#define ITM (&fake_itm)
+
+/* CMSIS's ITM_SendChar(): with ITM and port 0 enabled it waits, with no limit,
+   for the port to take the character. */
+static inline uint32_t ITM_SendChar(uint32_t ch)
+{
+  if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) && ((ITM->TER & 1UL) != 0UL))
+  {
+    while (ITM->PORT[0U].u32 == 0UL)
+    {
+    }
+    ITM->PORT[0U].u8 = (uint8_t)ch;
+  }
+  return ch;
+}
 
 /* bxCAN ------------------------------------------------------------------- */
 typedef struct

@@ -7,9 +7,10 @@ CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -I../App/Inc
 ADI_CFLAGS = $(CFLAGS) -Wno-strict-prototypes -Ifakes -isystem ../ADBMS6830/lib/inc -isystem ../ADBMS6830/program/inc
 
 .PHONY: test clean config_check
-test: test_can_frames test_can_tx test_mcu_wrapper test_bms_monitor config_check
+test: test_can_frames test_can_tx test_swo_log test_mcu_wrapper test_bms_monitor config_check
 	./test_can_frames
 	./test_can_tx
+	./test_swo_log
 	./test_mcu_wrapper
 	./test_bms_monitor
 
@@ -19,6 +20,9 @@ test_can_frames: test_can_frames.c ../App/Src/can_frames.c ../App/Inc/can_frames
 # fakes/ stands in for Core/Inc/main.h so can_tx.c builds without the HAL.
 test_can_tx: test_can_tx.c ../App/Src/can_tx.c ../App/Inc/can_tx.h fakes/main.h
 	$(CC) $(CFLAGS) -Ifakes -o $@ test_can_tx.c ../App/Src/can_tx.c
+
+test_swo_log: test_swo_log.c ../App/Src/swo_log.c fakes/main.h
+	$(CC) $(CFLAGS) -Ifakes -o $@ test_swo_log.c ../App/Src/swo_log.c
 
 test_mcu_wrapper: test_mcu_wrapper.c ../ADBMS6830/program/src/mcuWrapper.c ../ADBMS6830/program/inc/mcuWrapper.h fakes/main.h
 	$(CC) $(ADI_CFLAGS) -o $@ test_mcu_wrapper.c ../ADBMS6830/program/src/mcuWrapper.c
@@ -46,4 +50,4 @@ config_check: ../App/Inc/bms_config.h ../App/Inc/can_frames.h
 	rm -f bad_config.h
 
 clean:
-	rm -f test_can_frames test_can_tx test_mcu_wrapper test_bms_monitor bms_monitor_test.o bad_config.h
+	rm -f test_can_frames test_can_tx test_swo_log test_mcu_wrapper test_bms_monitor bms_monitor_test.o bad_config.h

@@ -17,6 +17,7 @@
 # Host unit test binaries.
 /tests/test_can_frames
 /tests/test_can_tx
+/tests/test_swo_log
 /tests/bad_config.h
 /tests/test_mcu_wrapper
 /tests/test_bms_monitor
