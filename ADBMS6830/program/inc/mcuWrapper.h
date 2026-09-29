@@ -21,25 +21,12 @@ and its licensor.
 #ifndef __ADBMSWRAPPER_H
 #define __ADBMSWRAPPER_H
 #include "common.h"
-
-#ifdef MBED
-
-#else
 #include "main.h"
-#include "stm32f3xx_hal.h"
-#include "stm32f3xx_it.h"
 
-extern ADC_HandleTypeDef hadc1;         /* Mcu dependent ADC handler */
-extern I2C_HandleTypeDef hi2c1;         /* Mcu dependent I2C handler */
-extern I2C_HandleTypeDef hi2c3;         /* Mcu dependent I2C handler */
 extern SPI_HandleTypeDef hspi1;         /* Mcu dependent SPI handler */
-extern SPI_HandleTypeDef hspi5;         /* Mcu dependent SPI handler */
-extern UART_HandleTypeDef huart4;       /* Mcu dependent UART handler */
-extern UART_HandleTypeDef huart5;       /* Mcu dependent UART handler */
 
-#define CS_PIN GPIO_PIN_6               /* Mcu dependent chip select */
-#define GPIO_PORT GPIOB      /* Mcu dependent adc chip select port */
-#endif
+#define CS_PIN SPI1_NSS_Pin             /* Mcu dependent chip select */
+#define GPIO_PORT SPI1_NSS_GPIO_Port    /* Mcu dependent chip select port */
 
 void Delay_ms(uint32_t delay);
 void adBmsCsLow(void);
@@ -56,10 +43,8 @@ void spiWriteReadBytes
   uint16_t size                             /*Option: number of bytes*/
 );
 void spiReadBytes(uint16_t size, uint8_t *rx_data);
-void startTimer(void);
-void stopTimer(void);
-uint32_t getTimCount(void);
 void adBmsWakeupIc(uint8_t total_ic);
+void adBmsForceWakeupIc(uint8_t total_ic);
 
 #endif
 /** @}*/

@@ -18,211 +18,38 @@ and its licensor.
 */
 #include "common.h"
 #include "mcuWrapper.h"
-#define WAKEUP_DELAY 1                          /* BMS ic wakeup delay  */
-#define TIM_EN 0
 
-#ifdef MBED
-extern Serial pc;
-extern SPI spi;
-extern Timer timer;
-extern DigitalOut chip_select;
-
-/**
- *******************************************************************************
- * Function: Delay_ms
- * @brief Delay mili second
- *
- * @details This function insert delay in ms.
- *     
- * Parameters:
- * @param [in]  delay   Delay_ms
- *
- * @return None
- *
- *******************************************************************************
-*/
-void Delay_ms(uint32_t delay)
-{
-  wait_ms((int)delay);
-}
-
-/**
- *******************************************************************************
- * Function: adBmsCsLow
- * @brief Select chip select low
- *
- * @details This function does spi chip select low.
- *
- * @return None
- *
- *******************************************************************************
-*/
-void adBmsCsLow()
-{
-  spi.lock();
-  chip_select = 0;
-}
-
-/**
- *******************************************************************************
- * Function: adBmsCsHigh
- * @brief Select chip select High
- *
- * @details This function does spi chip select high.
- *
- * @return None
- *
- *******************************************************************************
-*/
-void adBmsCsHigh()
-{
-  chip_select = 1;
-  spi.unlock();
-}
-
-/**
- *******************************************************************************
- * Function: spiWriteBytes
- * @brief Writes an array of bytes out of the SPI port.
- *
- * @details This function wakeup bms ic in IsoSpi mode send dumy byte data in spi line..
- *
- * @param [in]  size            Numberof bytes to be send on the SPI line
- *
- * @param [in]  *tx_Data    Tx data pointer 
- *
- * @return None
- *
- *******************************************************************************
-*/
-void spiWriteBytes
-( 
-uint16_t size,                     /*Option: Number of bytes to be written on the SPI port*/
-uint8_t *tx_data                       /*Array of bytes to be written on the SPI port*/
-)
-{
-  uint8_t rx_data[size];
-  spi.write((char *)tx_data, size ,(char *)rx_data, size);
-}
-
-/**
- *******************************************************************************
- * Function: spiWriteReadBytes
- * @brief Writes and read a set number of bytes using the SPI port.
- *
- * @details This function writes and read a set number of bytes using the SPI port.
- *
- * @param [in]  *tx_data    Tx data pointer
- *
- * @param [in]  *rx_data    Rx data pointer 
- *
- * @param [in]  size            Data size 
- *
- * @return None
- *
- *******************************************************************************
-*/
-void spiWriteReadBytes
-(
-uint8_t *tx_data,                   /*array of data to be written on SPI port*/
-uint8_t *rx_data,                   /*Input: array that will store the data read by the SPI port*/
-uint16_t size                           /*Option: number of bytes*/
-)
-{  
-  uint16_t data_size = (4 + size);
-  uint8_t cmd[data_size];
-  memcpy(&cmd[0], &tx_data[0], 4); /* dst, src, size */
-  spi.write((char *)cmd, data_size ,(char *)cmd, data_size);
-  memcpy(&rx_data[0], &cmd[4], size); /* dst, src, size */
-}
-
-/**
- *******************************************************************************
- * Function: spiReadBytes
- * @brief Read number of bytes using the SPI port.
- *
- * @details This function Read a set number of bytes using the SPI port.
- *
- * @param [in]  size            Data size 
- *
- * @param [in]  *rx_data    Rx data pointer
- * 
- * @return None
- *
- *******************************************************************************
-*/
-void spiReadBytes(uint16_t size, uint8_t *rx_data)
-{   
-  uint8_t tx_data[size];
-  for(uint8_t i=0; i < size; i++)
-  {
-    tx_data[i] = 0xFF;
-  }
-  spi.write((char *)tx_data, size ,(char *)rx_data, size);
-}
-
-#if TIM_EN
-/**
- *******************************************************************************
- * Function: startTimer()
- * @brief Start timer 
- *
- * @details This function start the timer.
- *
- * @return None
- *
- *******************************************************************************
-*/
-void startTimer()
-{   
-  timer.start();
-}
-
-/**
- *******************************************************************************
- * Function: stopTimer()
- * @brief Stop timer 
- *
- * @details This function stop the timer.
- *
- * @return None
- *
- *******************************************************************************
-*/
-void stopTimer()
-{   
-  timer.stop();
-}
-
-/**
- *******************************************************************************
- * Function: getTimCount()
- * @brief Get Timer Count Value 
- *
- * @details This function return the timer count value.
- *
- * @return tim_count
- *
- *******************************************************************************
-*/
-uint32_t getTimCount()
-{   
-  uint32_t count = 0;
-  count = timer.read_us();
-  timer.reset();
-  return(count);
-}
-#endif
-
-#else
-
-#define SPI_TIME_OUT HAL_MAX_DELAY              /* SPI Time out delay   */
-#define UART_TIME_OUT HAL_MAX_DELAY             /* UART Time out delay  */
-#define I2C_TIME_OUT HAL_MAX_DELAY              /* I2C Time out delay   */
+#define SPI_TIME_OUT 10U                        /* SPI time out (ms); a failed transfer then fails PEC */
+#define WAKEUP_PULSE_US 500U                    /* CS low and high time per IC: tWAKE max, datasheet Table 7 */
+#define WAKEUP_QUIET_US 2000U                   /* chain counts as awake this long after a CS rising edge */
 
 SPI_HandleTypeDef *hspi         = &hspi1;       /* MUC SPI Handler      */
-UART_HandleTypeDef *huart       = &huart5;      /* MUC UART Handler     */
-I2C_HandleTypeDef *hi2c         = &hi2c1;       /* MUC I2C Handler      */
+
+static uint32_t last_cs_high;                   /* DWT cycle count at the last CS rising edge */
+static bool chain_touched;                      /* false until the first transaction */
+
+static uint32_t usToCycles(uint32_t us)
+{
+  return us * (SystemCoreClock / 1000000U);
+}
+
+/* The DWT cycle count, re-enabling the counter first: a debugger attaching,
+   detaching or setting up SWV can clear its enable bits, and the wake-up
+   timing must never wait on a stopped counter. */
+static uint32_t cycleCount(void)
+{
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  return DWT->CYCCNT;
+}
+
+static void Delay_us(uint32_t us)
+{  
+  uint32_t start = cycleCount();
+  while ((cycleCount() - start) < usToCycles(us))
+  {
+  }
+}
 
 /**
  *******************************************************************************
@@ -264,7 +91,7 @@ void adBmsCsLow()
  * Function: adBmsCsHigh
  * @brief Select chip select High
  *
- * @details This function does spi chip select high.
+ * @details This function does spi chip select high and notes when the chain last saw traffic.
  *
  * @return None
  *
@@ -273,6 +100,8 @@ void adBmsCsLow()
 void adBmsCsHigh()
 {
   HAL_GPIO_WritePin(GPIO_PORT, CS_PIN, GPIO_PIN_SET);
+  last_cs_high = cycleCount();
+  chain_touched = true;
 }
 
 /**
@@ -346,67 +175,39 @@ void spiReadBytes(uint16_t size, uint8_t *rx_data)
 {   
   HAL_SPI_Receive(hspi, rx_data, size, SPI_TIME_OUT);
 }
-#if TIM_EN
+
 /**
  *******************************************************************************
- * Function: startTimer()
- * @brief Start timer 
+ * Function: adBmsForceWakeupIc
+ * @brief Wakeup bms ic using chip select, unconditionally
  *
- * @details This function start the timer.
+ * @details This function sends one chip select pulse per ic, each pulse long enough to
+ *          wake one device, so the whole daisy chain wakes in sequence.
+ *
+ * @param [in]  total_ic    Total_ic
  *
  * @return None
  *
  *******************************************************************************
 */
-void startTimer()
+void adBmsForceWakeupIc(uint8_t total_ic)
 {   
-  HAL_TIM_Base_Start(htim);
+  for (uint8_t ic = 0; ic < total_ic; ic++)
+  {
+    adBmsCsLow();
+    Delay_us(WAKEUP_PULSE_US);
+    adBmsCsHigh();
+    Delay_us(WAKEUP_PULSE_US);
+  }
 }
-
-/**
- *******************************************************************************
- * Function: stopTimer()
- * @brief Stop timer 
- *
- * @details This function stop the timer.
- *
- * @return None
- *
- *******************************************************************************
-*/
-void stopTimer()
-{   
-  HAL_TIM_Base_Stop(htim);
-}
-
-/**
- *******************************************************************************
- * Function: getTimCount()
- * @brief Get Timer Count Value 
- *
- * @details This function return the timer count value.
- *
- * @return tim_count
- *
- *******************************************************************************
-*/
-uint32_t getTimCount()
-{   
-  uint32_t count = 0;
-  count = __HAL_TIM_GetCounter(htim);
-  __HAL_TIM_SetCounter(htim, 0);
-  return(count);
-}
-#endif
-
-#endif
 
 /**
  *******************************************************************************
  * Function: adBmsWakeupIc
  * @brief Wakeup bms ic using chip select
  *
- * @details This function wakeup thr bms ic using chip select.
+ * @details This function wakes the chain unless it saw traffic within WAKEUP_QUIET_US,
+ *          so back-to-back transactions in one measurement cycle pay for one wake-up.
  *
  * @param [in]  total_ic    Total_ic
  *
@@ -416,12 +217,10 @@ uint32_t getTimCount()
 */
 void adBmsWakeupIc(uint8_t total_ic)
 {
-  for (uint8_t ic = 0; ic < total_ic; ic++)
+  bool awake = chain_touched && ((cycleCount() - last_cs_high) < usToCycles(WAKEUP_QUIET_US));
+  if (!awake)
   {
-    adBmsCsLow();
-    Delay_ms(WAKEUP_DELAY);
-    adBmsCsHigh();
-    Delay_ms(WAKEUP_DELAY);
+    adBmsForceWakeupIc(total_ic);
   }
 }
 
