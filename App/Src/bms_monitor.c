@@ -92,12 +92,21 @@ static uint16_t read_cells(void)
   return failed;
 }
 
-/* Die temperature (A), THSD/SPIFLT (C) and per-cell OV/UV (D). */
+/* Starts an aux-ADC conversion of the die temperature. ADCV only converts the
+   cells, so without this ITMP never leaves its power-on value. */
+static void start_die_temp_conversion(void)
+{
+  adBms6830_Adax(AUX_OW_OFF, PUP_DOWN, TEMP);
+}
+
+/* Die temperature (A), THSD/SPIFLT (C) and per-cell OV/UV (D), then starts the
+   die-temperature conversion the next status read will see. */
 static uint16_t read_status(void)
 {
   uint16_t failed = read_group(RDSTATA, Status, A);
   failed |= read_group(RDSTATC, Status, C);
   failed |= read_group(RDSTATD, Status, D);
+  start_die_temp_conversion();
   return failed;
 }
 
@@ -143,15 +152,16 @@ static bool chip_reset_seen(void)
   return false;
 }
 
-/* INIT: wake the chain, write the config, start continuous conversion and
-   confirm the config stuck. The first cell read is a full cycle later, which
-   covers the conversion warm-up. */
+/* INIT: wake the chain, write the config, start continuous cell conversion
+   and a die-temperature conversion, and confirm the config stuck. The first
+   cell read is a full cycle later, which covers the conversion warm-up. */
 static void start_chain(void)
 {
   adBmsForceWakeupIc(TOTAL_IC);
   adBmsWriteData(TOTAL_IC, ic, WRCFGA, Config, A);
   adBmsWriteData(TOTAL_IC, ic, WRCFGB, Config, B);
   adBms6830_Adcv(RD_ON, CONTINUOUS, DCP_OFF, RSTF_OFF, OW_OFF_ALL_CH);
+  start_die_temp_conversion();
 
   uint16_t pec_failed;
   if ((config_mismatch(&pec_failed) | pec_failed) == 0U)

@@ -19,3 +19,5 @@
 /tests/test_can_tx
 /tests/overflow_config.h
 /tests/test_mcu_wrapper
+/tests/test_bms_monitor
+/tests/*.o
